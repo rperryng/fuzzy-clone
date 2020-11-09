@@ -10,6 +10,7 @@ edition = "2018"
 anyhow = "^1"
 dotenv = "^0"
 dotenv_codegen = "^0"
+regex = "^1"
 reqwest = { version = "^0", features = ["blocking", "json"] }
 serde = { version = "^1", features = ["derive"] }
 serde_json =  "^1"
