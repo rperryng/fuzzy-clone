@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use dotenv::dotenv;
+use log::info;
 use regex::Regex;
 use reqwest::header::{ACCEPT, USER_AGENT};
 
@@ -10,10 +11,12 @@ mod github;
 #[macro_use]
 extern crate dotenv_codegen;
 
-fn main() -> Result<()> {
-    println!("Hello world!");
+#[macro_use]
+extern crate lazy_static;
 
+fn main() -> Result<()> {
     dotenv().ok();
+    env_logger::init();
 
     // let link_pattern = Regex::new(r#"<(.+)>; rel=\\"(.+)\\""#).unwrap();
     // let caps = link_pattern.captures(input)
@@ -21,7 +24,7 @@ fn main() -> Result<()> {
 
     let repo_names = github::get_repo_names()?;
 
-    println!("repo_names: {:?}", repo_names);
+    info!("repo_names: {:?}", repo_names);
 
     Ok(())
 }
