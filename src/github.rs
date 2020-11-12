@@ -1,10 +1,9 @@
 use anyhow::{anyhow, bail, Context, Result};
 use log::info;
 use regex::Regex;
+use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, USER_AGENT};
 use reqwest::{Client, Response};
-use reqwest::header::{ACCEPT, USER_AGENT};
 use serde::Deserialize;
-use url::Url;
 
 const API_URL: &str = "https://api.github.com/user/repos";
 const ACCEPT_VALUE: &str = "application/vnd.github.v3+json";
@@ -29,18 +28,22 @@ struct Link {
 
 pub async fn get_repo_names() -> Result<Vec<String>> {
     let response = request().await?;
-
-    let num_pages = response
+    let link_header = response
         .headers()
         .get("link")
-        .context("failed to read link")
-        .and_then(|header| header.to_str().map_err(|e| anyhow!(e)))
-        .and_then(|text| parse_num_pages_from_link_header(text))?;
+        .context("couldn't find link header in response")?;
+    let num_pages = parse_num_pages_from_link_header(link_header.to_str()?)?;
 
     info!("num_pages: {}", num_pages);
 
-    parse_response(response).await
+    let repo_names = parse_response(response).await?;
+
+    Ok(repo_names)
 }
+
+// async fn get_remaining_repos(num_pages: i32) -> Result<Vec<String>> {
+
+// }
 
 fn parse_num_pages_from_link_header(link: &str) -> Result<i32> {
     LINK_PATTERN
@@ -57,7 +60,7 @@ fn parse_num_pages_from_link_header(link: &str) -> Result<i32> {
 }
 
 async fn parse_response(response: Response) -> Result<Vec<String>> {
-    let repo_names = response
+    let repo_names: Vec<String> = response
         .json::<Vec<Repo>>()
         .await
         .context("Failed to deserialize github response")?
