@@ -1,11 +1,14 @@
 use anyhow::{anyhow, bail, Context, Result};
+use futures::future::try_join_all;
+use futures::{stream, Future, StreamExt};
 use log::info;
 use regex::Regex;
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, USER_AGENT};
 use reqwest::{Client, Response};
 use serde::Deserialize;
+use url::Url;
 
-const API_URL: &str = "https://api.github.com/user/repos";
+const API_REPO_URL_STR: &str = "https://api.github.com/user/repos";
 const ACCEPT_VALUE: &str = "application/vnd.github.v3+json";
 const GH_ACCESS_TOKEN: &str = dotenv!("GH_ACCESS_TOKEN");
 const GH_USER_NAME: &str = dotenv!("GH_USER_NAME");
@@ -13,6 +16,9 @@ const GH_USER_NAME: &str = dotenv!("GH_USER_NAME");
 lazy_static! {
     static ref CLIENT: Client = Client::new();
     static ref LINK_PATTERN: Regex = Regex::new(r#"<.+\bpage\b=(\d+).+>;\s*rel="last""#).unwrap();
+    static ref API_REPO_URL: Url = Url::parse(API_REPO_URL_STR).unwrap();
+    static ref CONCURRENT_REQUESTS: usize =
+        dotenv!("CONCURRENT_REQUESTS").parse::<usize>().unwrap();
 }
 
 #[derive(Deserialize, Debug)]
@@ -27,7 +33,7 @@ struct Link {
 }
 
 pub async fn get_repo_names() -> Result<Vec<String>> {
-    let response = request().await?;
+    let response = request(&1).await?;
     let link_header = response
         .headers()
         .get("link")
@@ -36,16 +42,45 @@ pub async fn get_repo_names() -> Result<Vec<String>> {
 
     info!("num_pages: {}", num_pages);
 
-    let repo_names = parse_response(response).await?;
+    let mut repo_names = parse_response(response).await?;
+    let mut reminaing_repo_names = get_remaining_repos(num_pages).await?;
+
+    repo_names.append(&mut reminaing_repo_names);
 
     Ok(repo_names)
 }
 
-// async fn get_remaining_repos(num_pages: i32) -> Result<Vec<String>> {
+async fn get_remaining_repos(num_pages: u32) -> Result<Vec<String>> {
+    let pages: Vec<u32> = (2..=num_pages).collect();
+    let requests = pages.iter().map(|page_num| {
+        CLIENT
+            .get(API_REPO_URL_STR)
+            .header(USER_AGENT, GH_USER_NAME)
+            .header(ACCEPT, ACCEPT_VALUE)
+            .basic_auth(GH_USER_NAME, Some(GH_ACCESS_TOKEN))
+            .query(&[
+                ("page", page_num.to_string()),
+                ("per_page", "100".to_string()), // 100
+            ])
+            .send()
+    });
 
-// }
+    let responses: Vec<Response> = try_join_all(requests).await?;
+    let repo_names = responses
+        .into_iter()
+        .map(|response| parse_response(response));
+    let repo_names: Vec<_> = try_join_all(repo_names)
+        .await?
+        .iter()
+        .flatten()
+        .map(|s| s.to_string())
+        .collect();
 
-fn parse_num_pages_from_link_header(link: &str) -> Result<i32> {
+    Ok(repo_names)
+}
+
+fn parse_num_pages_from_link_header(link: &str) -> Result<u32> {
+    info!("link: {}", link);
     LINK_PATTERN
         .captures(link)
         .context(format!("Failed to match link: {}", link))?
@@ -55,7 +90,7 @@ fn parse_num_pages_from_link_header(link: &str) -> Result<i32> {
             link
         ))?
         .as_str()
-        .parse::<i32>()
+        .parse::<u32>()
         .map_err(|e| anyhow!(e))
 }
 
@@ -71,15 +106,15 @@ async fn parse_response(response: Response) -> Result<Vec<String>> {
     Ok(repo_names)
 }
 
-async fn request() -> Result<Response> {
+async fn request(page: &u32) -> Result<Response> {
     CLIENT
-        .get(API_URL)
+        .get(API_REPO_URL_STR)
         .header(USER_AGENT, GH_USER_NAME)
         .header(ACCEPT, ACCEPT_VALUE)
         .basic_auth(GH_USER_NAME, Some(GH_ACCESS_TOKEN))
         .query(&[
-            ("page", "1"),
-            ("per_page", "100"), // 100
+            ("page", page),
+            ("per_page", &100), // 100
         ])
         .send()
         .await

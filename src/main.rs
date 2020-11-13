@@ -17,7 +17,8 @@ async fn main() -> Result<()> {
 
     let repo_names = github::get_repo_names().await?;
 
-    info!("repo_names: {:?}", repo_names);
+    info!("repo_names: {:?} entries", repo_names.len());
+    info!("repo_names: {:?} entries", repo_names);
 
     Ok(())
 }
