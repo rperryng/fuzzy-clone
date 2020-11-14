@@ -26,7 +26,10 @@ pub struct Config {
 
 impl Config {
     pub fn new(username: String, personal_access_token: String) -> Self {
-        Self { username, personal_access_token }
+        Self {
+            username,
+            personal_access_token,
+        }
     }
 }
 
@@ -76,7 +79,10 @@ impl Github {
                 .get(API_REPO_URL_STR)
                 .header(USER_AGENT, self.config.username.clone())
                 .header(ACCEPT, ACCEPT_VALUE)
-                .basic_auth(self.config.username.clone(), Some(self.config.personal_access_token.clone()))
+                .basic_auth(
+                    self.config.username.clone(),
+                    Some(self.config.personal_access_token.clone()),
+                )
                 .query(&[
                     ("page", page_num.to_string()),
                     ("per_page", "100".to_string()), // 100
@@ -130,7 +136,10 @@ impl Github {
             .get(API_REPO_URL_STR)
             .header(USER_AGENT, self.config.username.clone())
             .header(ACCEPT, ACCEPT_VALUE)
-            .basic_auth(self.config.username.clone(), Some(self.config.personal_access_token.clone()))
+            .basic_auth(
+                self.config.username.clone(),
+                Some(self.config.personal_access_token.clone()),
+            )
             .query(&[
                 ("page", page),
                 ("per_page", &100), // 100

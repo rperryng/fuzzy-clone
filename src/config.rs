@@ -1,55 +1,94 @@
+use crate::file;
 use crate::github;
 use anyhow::{Context, Result};
-use clap::{App, Arg, ArgMatches};
+use clap::{Arg, ArgMatches};
+
+const ARG_USERNAME: &str = "username";
+const ARG_TOKEN: &str = "token";
+const ARG_OUTPUT_FILE: &str = "output_file";
+const ARG_FORCE: &str = "force";
 
 pub struct Config {
     github: github::Config,
+    file: file::Config,
+    force_refresh: bool,
 }
 
 impl Config {
     pub fn github(&self) -> &github::Config {
         &self.github
     }
+
+    pub fn file(&self) -> &file::Config {
+        &self.file
+    }
+
+    pub fn force_refresh(&self) -> &bool {
+        &self.force_refresh
+    }
 }
 
 pub fn config() -> Result<Config> {
     let args = read_args();
-
-    Ok(Config {
+    let config = Config {
         github: github::Config::new(
-            args.value_of("username")
+            args.value_of(ARG_USERNAME)
                 .context("username arg required.")?
                 .to_owned(),
-            args.value_of("token")
+            args.value_of(ARG_TOKEN)
                 .or_else(|| Some(dotenv!("GH_ACCESS_TOKEN")))
                 .map(|t| t.to_owned())
                 .context("personal access token arg or GH_ACCESS_TOKEN must be set.")?,
         ),
-    })
+        file: file::Config::new(
+            args.value_of(ARG_OUTPUT_FILE)
+                .or(Some(&crate::file::DEFAULT_PATH))
+                .unwrap()
+                .to_string(),
+        ),
+        force_refresh: args.is_present(ARG_FORCE),
+    };
+
+    Ok(config)
 }
 
 fn read_args() -> ArgMatches {
-    App::new("fzf-repo-clone")
+    clap::App::new("fzf-repo-clone")
         .version("1.0")
         .author("rperryng")
         .about("Use FZF to clone github projects")
         .arg(
-            Arg::new("username")
+            Arg::new(ARG_USERNAME)
                 .short('u')
                 .long("username")
                 .takes_value(true)
                 .value_name("USERNAME")
                 .required(true)
-                .about("GitHub username")
+                .about("GitHub username"),
         )
         .arg(
-            Arg::new("personal_access_token")
+            Arg::new(ARG_TOKEN)
                 .short('t')
                 .long("--token")
                 .takes_value(true)
                 .value_name("USERNAME")
                 .required(false)
-                .about("GitHub username")
+                .about("GitHub username"),
+        )
+        .arg(
+            Arg::new(ARG_OUTPUT_FILE)
+                .short('o')
+                .long("--output-file")
+                .takes_value(true)
+                .value_name("OUTPUT_FILE")
+                .required(false)
+                .about("Location to cache repo names"),
+        )
+        .arg(
+            Arg::new(ARG_FORCE)
+                .short('f')
+                .long("--force")
+                .about("Wipe and re-hydrate the cache of repo names"),
         )
         .get_matches()
 }
