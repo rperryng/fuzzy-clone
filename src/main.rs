@@ -8,6 +8,7 @@ use std::process::{Command, Stdio};
 mod config;
 mod file;
 mod github;
+mod fuzzy;
 
 extern crate skim;
 
@@ -23,10 +24,9 @@ async fn main() -> Result<()> {
     env_logger::init();
 
     let config = config::config()?;
-
     let f = file::FileUtils::new(config.file().clone());
 
-    let repo_names: Vec<String> = if *config.force_refresh() || f.cache_is_stale()? {
+    let all_repo_names: Vec<String> = if *config.force_refresh() || f.cache_is_stale()? {
         info!("loading repo names from API");
         refresh_cache(&config).await?
     } else {
@@ -34,34 +34,8 @@ async fn main() -> Result<()> {
         f.read_repo_names()?
     };
 
-    run_fzf(repo_names)?;
-
-    Ok(())
-}
-
-fn run_fzf(input: Vec<String>) -> Result<()> {
-    info!("starting fzf");
-
-    let input = input.join("\n");
-    let input_bytes = input.as_bytes();
-
-    let mut fzf = Command::new("fzf")
-        .stderr(Stdio::piped())
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .context("Couldn't start fzf")?;
-
-    let fzf_stdin = fzf
-        .stdin
-        .as_mut()
-        .context("Couldn't get fzf stdin handle")?;
-    fzf_stdin.write_all(input_bytes)?;
-
-    info!("Waiting for FZF to finish.");
-    let fzf_result = fzf.wait_with_output()?.stdout;
-
-    info!("got FZF output: {}", String::from_utf8(fzf_result)?);
+    let selected_repo_names = fuzzy::fuzzy(all_repo_names)?;
+    info!("Got repo names: {:?}", selected_repo_names);
 
     Ok(())
 }
