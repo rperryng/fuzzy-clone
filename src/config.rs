@@ -1,4 +1,4 @@
-use crate::file;
+use crate::repo_names_store;
 use crate::github;
 use anyhow::{Context, Result};
 use clap::{Arg, ArgMatches};
@@ -10,7 +10,7 @@ const ARG_FORCE: &str = "force";
 
 pub struct Config {
     github: github::Config,
-    file: file::Config,
+    repo_names_store: repo_names_store::Config,
     force_refresh: bool,
 }
 
@@ -19,8 +19,8 @@ impl Config {
         &self.github
     }
 
-    pub fn file(&self) -> &file::Config {
-        &self.file
+    pub fn file(&self) -> &repo_names_store::Config {
+        &self.repo_names_store
     }
 
     pub fn force_refresh(&self) -> &bool {
@@ -40,9 +40,9 @@ pub fn config() -> Result<Config> {
                 .map(|t| t.to_owned())
                 .context("personal access token arg or GH_ACCESS_TOKEN must be set.")?,
         ),
-        file: file::Config::new(
+        repo_names_store: repo_names_store::Config::new(
             args.value_of(ARG_OUTPUT_FILE)
-                .or(Some(&crate::file::DEFAULT_PATH))
+                .or(Some(&crate::repo_names_store::DEFAULT_PATH))
                 .unwrap()
                 .to_string(),
         ),
