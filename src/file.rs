@@ -23,15 +23,20 @@ impl Config {
     }
 }
 
+// Convert this to a "Repo Names Datastore" instead.
 pub struct FileUtils {
     path: PathBuf,
+    repo_names: Option<Vec<String>>,
 }
 
 impl FileUtils {
     pub fn new(config: Config) -> Self {
         let mut path = PathBuf::new();
         path.push(config.path);
-        Self { path }
+        Self {
+            path,
+            repo_names: None,
+        }
     }
 
     pub fn cache_is_stale(&self) -> Result<bool> {
@@ -40,10 +45,26 @@ impl FileUtils {
         Ok(stale)
     }
 
-    pub fn write_repo_names(&self, repo_names: Vec<String>) -> Result<()> {
+    pub fn write_repo_names(&self, repo_names: &Vec<String>) -> Result<()> {
         let mut f = File::create(self.path.clone()).context("couldn't create file")?;
         f.write_all(repo_names.join("\n").as_bytes())
             .context("couldn't write file")?;
         Ok(())
+    }
+
+    pub fn read_repo_names(&self) -> Result<Vec<String>> {
+        match self.repo_names.clone() {
+            Some(names) => Ok(names),
+            None => self.read_file(),
+        }
+    }
+
+    fn read_file(&self) -> Result<Vec<String>> {
+        let repo_names: Vec<String> = fs::read_to_string(self.path.clone())?
+            .split("\n")
+            .map(|name| name.to_string())
+            .collect::<Vec<String>>();
+
+        Ok(repo_names)
     }
 }
