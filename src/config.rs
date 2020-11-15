@@ -62,10 +62,10 @@ pub fn config() -> Result<Config> {
 }
 
 fn read_args() -> ArgMatches {
-    clap::App::new("fzf-repo-clone")
+    clap::App::new("fuzzy-clone")
         .version("1.0")
         .author("rperryng")
-        .about("Use FZF to clone github projects")
+        .about("Fuzzy search your authorized GitHub repositories and clone selected entries")
         .arg(
             Arg::new(ARG_USERNAME)
                 .short('u')
