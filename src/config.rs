@@ -1,20 +1,28 @@
-use crate::repo_names_store;
+use crate::git;
 use crate::github;
+use crate::repo_names_store;
 use anyhow::{Context, Result};
 use clap::{Arg, ArgMatches};
+use std::path::PathBuf;
 
 const ARG_USERNAME: &str = "username";
 const ARG_TOKEN: &str = "token";
 const ARG_OUTPUT_FILE: &str = "output_file";
+const ARG_DIRECTORY: &str = "directory";
 const ARG_FORCE: &str = "force";
 
 pub struct Config {
+    git: git::Config,
     github: github::Config,
     repo_names_store: repo_names_store::Config,
     force_refresh: bool,
 }
 
 impl Config {
+    pub fn git(&self) -> &git::Config {
+        &self.git
+    }
+
     pub fn github(&self) -> &github::Config {
         &self.github
     }
@@ -31,6 +39,7 @@ impl Config {
 pub fn config() -> Result<Config> {
     let args = read_args();
     let config = Config {
+        git: git::Config::new(args.value_of(ARG_DIRECTORY).map(|dir| PathBuf::from(dir))),
         github: github::Config::new(
             args.value_of(ARG_USERNAME)
                 .context("username arg required.")?
@@ -89,6 +98,15 @@ fn read_args() -> ArgMatches {
                 .short('f')
                 .long("--force")
                 .about("Wipe and re-hydrate the cache of repo names"),
+        )
+        .arg(
+            Arg::new(ARG_DIRECTORY)
+                .short('d')
+                .long("--directory")
+                .takes_value(true)
+                .value_name("CLONING_DIRECTORY")
+                .required(false)
+                .about("Directory where newly cloned projects should go into"),
         )
         .get_matches()
 }

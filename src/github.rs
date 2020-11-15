@@ -1,5 +1,6 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, Error};
 use futures::future::try_join_all;
+use futures::Future;
 use log::info;
 use regex::Regex;
 use reqwest::header::{ACCEPT, USER_AGENT};
@@ -9,6 +10,7 @@ use url::Url;
 
 const API_REPO_URL_STR: &str = "https://api.github.com/user/repos";
 const ACCEPT_VALUE: &str = "application/vnd.github.v3+json";
+const PER_PAGE: u32 = 100;
 
 lazy_static! {
     static ref CLIENT: Client = Client::new();
@@ -42,12 +44,6 @@ struct Repo {
     full_name: String,
 }
 
-#[derive(Debug)]
-struct Link {
-    url: String,
-    link_type: String,
-}
-
 impl Github {
     pub fn new(config: Config) -> Github {
         Github { config }
@@ -58,8 +54,9 @@ impl Github {
         let link_header = response
             .headers()
             .get("link")
-            .context("couldn't find link header in response")?;
-        let num_pages = self.parse_num_pages_from_link_header(link_header.to_str()?)?;
+            .context("couldn't find link header in response")?
+            .to_str()?;
+        let num_pages = self.parse_num_pages_from_link_header(link_header)?;
 
         info!("num_pages: {}", num_pages);
 
@@ -72,33 +69,28 @@ impl Github {
         Ok(repo_names)
     }
 
-    async fn get_remaining_repos(&self, num_pages: u32) -> Result<Vec<String>> {
-        let pages: Vec<u32> = (2..=num_pages).collect();
-        let requests = pages.iter().map(|page_num| {
-            CLIENT
-                .get(API_REPO_URL_STR)
-                .header(USER_AGENT, self.config.username.clone())
-                .header(ACCEPT, ACCEPT_VALUE)
-                .basic_auth(
-                    self.config.username.clone(),
-                    Some(self.config.personal_access_token.clone()),
-                )
-                .query(&[
-                    ("page", page_num.to_string()),
-                    ("per_page", "100".to_string()), // 100
-                ])
-                .send()
-        });
+    fn request(&self, page: &u32) -> impl Future<Output = Result<Response>> {
+        let request = CLIENT
+            .get(API_REPO_URL_STR)
+            .header(USER_AGENT, self.config.username.to_owned())
+            .header(ACCEPT, ACCEPT_VALUE)
+            .basic_auth(
+                self.config.username.to_owned(),
+                Some(self.config.personal_access_token.to_owned()),
+            )
+            .query(&[("page", page), ("per_page", &PER_PAGE)])
+            .send();
 
-        let responses: Vec<Response> = try_join_all(requests).await?;
-        let repo_names = responses
-            .into_iter()
-            .map(|response| self.parse_response(response));
-        let repo_names: Vec<_> = try_join_all(repo_names)
-            .await?
+        async move { request.await.map_err(Error::new) }
+    }
+
+    async fn parse_response(&self, response: Response) -> Result<Vec<String>> {
+        let repo_names: Vec<String> = response
+            .json::<Vec<Repo>>()
+            .await
+            .context("Failed to deserialize github response")?
             .iter()
-            .flatten()
-            .map(|s| s.to_string())
+            .map(|repo| repo.full_name.to_string())
             .collect();
 
         Ok(repo_names)
@@ -116,36 +108,22 @@ impl Github {
             ))?
             .as_str()
             .parse::<u32>()
-            .map_err(|e| anyhow!(e))
+            .map_err(Error::new)
     }
 
-    async fn parse_response(&self, response: Response) -> Result<Vec<String>> {
-        let repo_names: Vec<String> = response
-            .json::<Vec<Repo>>()
-            .await
-            .context("Failed to deserialize github response")?
+    async fn get_remaining_repos(&self, num_pages: u32) -> Result<Vec<String>> {
+        let requests = (2..=num_pages).map(|page_num| self.request(&page_num));
+        let responses: Vec<Response> = try_join_all(requests).await?;
+        let repo_names = responses
+            .into_iter()
+            .map(|response| self.parse_response(response));
+        let repo_names: Vec<_> = try_join_all(repo_names)
+            .await?
             .iter()
-            .map(|repo| repo.full_name.to_string())
+            .flatten()
+            .map(|s| s.to_string())
             .collect();
 
         Ok(repo_names)
-    }
-
-    async fn request(&self, page: &u32) -> Result<Response> {
-        CLIENT
-            .get(API_REPO_URL_STR)
-            .header(USER_AGENT, self.config.username.clone())
-            .header(ACCEPT, ACCEPT_VALUE)
-            .basic_auth(
-                self.config.username.clone(),
-                Some(self.config.personal_access_token.clone()),
-            )
-            .query(&[
-                ("page", page),
-                ("per_page", &100), // 100
-            ])
-            .send()
-            .await
-            .map_err(|e| anyhow!(e))
     }
 }
