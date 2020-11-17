@@ -7,13 +7,9 @@ mod repo_names_store;
 extern crate skim;
 
 #[macro_use]
-extern crate dotenv_codegen;
-
-#[macro_use]
 extern crate lazy_static;
 
 use anyhow::Result;
-use dotenv::dotenv;
 
 use git::Git;
 use github::Github;
@@ -23,6 +19,7 @@ use repo_names_store::RepoNamesStore;
 #[tokio::main]
 async fn main() -> Result<()> {
     init();
+
     let config = config::config()?;
     let repo_names_store = RepoNamesStore::new(config.file().to_owned());
     let git = Git::new(config.git().to_owned());
@@ -46,6 +43,5 @@ async fn main() -> Result<()> {
 }
 
 fn init() {
-    dotenv().ok();
     env_logger::init();
 }

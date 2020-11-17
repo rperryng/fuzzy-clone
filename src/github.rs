@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, Error};
+use anyhow::{Context, Error, Result};
 use futures::future::try_join_all;
 use futures::Future;
 use log::info;
@@ -8,6 +8,8 @@ use reqwest::{Client, Response};
 use serde::Deserialize;
 use url::Url;
 
+use std::env;
+
 const API_REPO_URL_STR: &str = "https://api.github.com/user/repos";
 const ACCEPT_VALUE: &str = "application/vnd.github.v3+json";
 const PER_PAGE: u32 = 100;
@@ -16,8 +18,9 @@ lazy_static! {
     static ref CLIENT: Client = Client::new();
     static ref LINK_PATTERN: Regex = Regex::new(r#"<.+\bpage\b=(\d+).+>;\s*rel="last""#).unwrap();
     static ref API_REPO_URL: Url = Url::parse(API_REPO_URL_STR).unwrap();
-    static ref CONCURRENT_REQUESTS: usize =
-        dotenv!("CONCURRENT_REQUESTS").parse::<usize>().unwrap();
+    static ref CONCURRENT_REQUESTS: Option<usize> = env::var("CONCURRENT_REQUESTS").ok().map(|v| v
+        .parse::<usize>()
+        .expect(&format!("CONCURRENT_REQUESTS must be a number")));
 }
 
 #[derive(Debug, Clone)]

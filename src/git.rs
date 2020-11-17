@@ -70,7 +70,7 @@ impl Git {
         let mut cmd = Command::new("git");
 
         if let Some(parent_path) = &self.config.parent_path {
-            info!("cloning to directory: {:?}", parent_path);
+            info!("\ncloning to directory: {:?}", parent_path);
             cmd.arg("-C");
             cmd.arg(parent_path);
         }

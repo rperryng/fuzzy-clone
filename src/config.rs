@@ -4,6 +4,7 @@ use crate::repo_names_store;
 use anyhow::{Context, Result};
 use clap::{Arg, ArgMatches};
 use std::path::PathBuf;
+use std::env;
 
 const ARG_USERNAME: &str = "username";
 const ARG_TOKEN: &str = "token";
@@ -45,9 +46,9 @@ pub fn config() -> Result<Config> {
                 .context("username arg required.")?
                 .to_owned(),
             args.value_of(ARG_TOKEN)
-                .or_else(|| Some(dotenv!("GH_ACCESS_TOKEN")))
                 .map(|t| t.to_owned())
-                .context("personal access token arg or GH_ACCESS_TOKEN must be set.")?,
+                .or(env::var("GH_ACCESS_TOKEN").ok())
+                .context("--token, -t, or GH_ACCESS_TOKEN must be set to a valid GitHub personal access token.")?,
         ),
         repo_names_store: repo_names_store::Config::new(
             args.value_of(ARG_OUTPUT_FILE)
