@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
-new_version=$(cat Cargo.toml | yj -t | jq '.package | .version' | tr -d '"')
+new_version=v$(cat Cargo.toml | yj -t | jq '.package | .version' | tr -d '"')
 last_version=$1
 
 echo "new_version is ${new_version}"
