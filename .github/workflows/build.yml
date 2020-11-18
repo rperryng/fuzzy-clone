@@ -5,9 +5,14 @@ name: CI
 jobs:
   build_and_test:
     name: Rust project
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v2
+      - name: 'Get previous tag'
+        id: previous_tag
+        uses: WyriHaximus/github-action-get-previous-tag@master
+      - name: 'Semantic version check'
+        run: ./sript/check-semver ${{ steps.previous_tag.outputs.tag }}
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable

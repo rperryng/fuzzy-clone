@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+new_version=$(cat Cargo.toml | yj -t | jq '.package | .version' | tr -d '"')
+last_version=$1
+
+echo "new_version is ${new_version}"
+echo "last_version is ${last_version}"
+
+if [[ ! "${new_version}" > "${last_version}" ]]; then
+  echo "Failed: Expected ${new_version} to be greater than ${last_version}"
+  exit 1
+fi
+
+echo "New version (${new_version}) is valid"
